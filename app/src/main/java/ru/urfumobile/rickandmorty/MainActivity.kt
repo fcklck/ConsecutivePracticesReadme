@@ -8,6 +8,7 @@ import ru.urfumobile.rickandmorty.ui.RickAndMortyApp
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { RickAndMortyApp() }
+        val container = (application as RickAndMortyApplication).container
+        setContent { RickAndMortyApp(container) }
     }
 }

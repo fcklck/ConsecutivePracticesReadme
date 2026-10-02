@@ -11,8 +11,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -26,11 +28,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import ru.urfumobile.rickandmorty.model.Character
 
 @Composable
-fun CharacterDetailsScreen(character: Character, onBack: () -> Unit) {
+fun CharacterDetailsScreen(
+    state: CharacterDetailsUiState,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -44,21 +51,37 @@ fun CharacterDetailsScreen(character: Character, onBack: () -> Unit) {
             )
         },
     ) { padding ->
-        Column(
-            modifier = Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            CharacterAvatar(character, 128.dp)
-            Text(
-                character.name,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 12.dp),
+        when {
+            state.isLoading -> DetailsLoading(Modifier.padding(padding))
+            state.errorMessage != null -> DetailsError(
+                message = state.errorMessage,
+                onRetry = onRetry,
+                modifier = Modifier.padding(padding),
             )
-            StatusLabel(character.status, large = true)
-            Text("Персонаж #${character.id}", color = AppColors.muted, modifier = Modifier.padding(top = 4.dp))
-            CharacterInfoCard(character)
+            state.character != null -> CharacterDetails(
+                character = state.character,
+                modifier = Modifier.padding(padding),
+            )
         }
+    }
+}
+
+@Composable
+private fun CharacterDetails(character: Character, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        CharacterAvatar(character, 150.dp)
+        Text(
+            character.name,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+        StatusLabel(character.status, large = true)
+        Text("Персонаж #${character.id}", color = AppColors.muted, modifier = Modifier.padding(top = 4.dp))
+        CharacterInfoCard(character)
     }
 }
 
@@ -87,6 +110,37 @@ private fun CharacterInfoCard(character: Character) {
                 }
                 if (index < fields.lastIndex) HorizontalDivider(color = AppColors.divider)
             }
+        }
+    }
+}
+
+@Composable
+private fun DetailsLoading(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+    ) {
+        CircularProgressIndicator()
+        Text("Загружаем детали…", color = AppColors.muted, modifier = Modifier.padding(top = 16.dp))
+    }
+}
+
+@Composable
+private fun DetailsError(
+    message: String,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxSize().padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+    ) {
+        Text("Не удалось открыть персонажа", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text(message, color = AppColors.muted, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
+        Button(onClick = onRetry, modifier = Modifier.padding(top = 20.dp)) {
+            Text("Повторить")
         }
     }
 }

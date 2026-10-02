@@ -26,14 +26,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.chuckerteam.chucker.api.Chucker
+import ru.urfumobile.rickandmorty.di.AppContainer
 import ru.urfumobile.rickandmorty.model.Character
 
 private enum class Tab(val title: String, val icon: ImageVector) {
@@ -46,24 +50,48 @@ private const val catalogRoute = "catalog"
 private const val detailsRoute = "character/{characterId}"
 
 @Composable
-fun RickAndMortyApp(viewModel: CharactersViewModel = viewModel()) {
+fun RickAndMortyApp(container: AppContainer) {
     val navController = rememberNavController()
+    val context = LocalContext.current
+    val listViewModel: CharactersViewModel = viewModel(
+        factory = CharactersViewModel.factory(container.getCharacters),
+    )
+    val listState by listViewModel.uiState.collectAsStateWithLifecycle()
 
     RickAndMortyTheme {
         Surface(Modifier.fillMaxSize()) {
             NavHost(navController = navController, startDestination = catalogRoute) {
                 composable(catalogRoute) {
                     CatalogScreen(
-                        viewModel = viewModel,
+                        state = listState,
+                        onQueryChanged = listViewModel::updateQuery,
+                        onNextPage = listViewModel::nextPage,
+                        onPreviousPage = listViewModel::previousPage,
+                        onRetry = listViewModel::retry,
                         onCharacterClick = { navController.navigate("character/${it.id}") },
+                        onOpenNetworkInspector = {
+                            context.startActivity(Chucker.getLaunchIntent(context))
+                        },
                     )
                 }
                 composable(
                     route = detailsRoute,
                     arguments = listOf(navArgument("characterId") { type = NavType.IntType }),
                 ) { entry ->
-                    val character = viewModel.findCharacter(entry.arguments?.getInt("characterId") ?: -1)
-                    if (character != null) CharacterDetailsScreen(character, navController::popBackStack)
+                    val characterId = entry.arguments?.getInt("characterId") ?: return@composable
+                    val detailsViewModel: CharacterDetailsViewModel = viewModel(
+                        key = "character-$characterId",
+                        factory = CharacterDetailsViewModel.factory(
+                            characterId = characterId,
+                            useCase = container.getCharacter,
+                        ),
+                    )
+                    val detailsState by detailsViewModel.uiState.collectAsStateWithLifecycle()
+                    CharacterDetailsScreen(
+                        state = detailsState,
+                        onBack = navController::popBackStack,
+                        onRetry = detailsViewModel::retry,
+                    )
                 }
             }
         }
@@ -71,7 +99,15 @@ fun RickAndMortyApp(viewModel: CharactersViewModel = viewModel()) {
 }
 
 @Composable
-private fun CatalogScreen(viewModel: CharactersViewModel, onCharacterClick: (Character) -> Unit) {
+private fun CatalogScreen(
+    state: CharactersUiState,
+    onQueryChanged: (String) -> Unit,
+    onNextPage: () -> Unit,
+    onPreviousPage: () -> Unit,
+    onRetry: () -> Unit,
+    onCharacterClick: (Character) -> Unit,
+    onOpenNetworkInspector: () -> Unit,
+) {
     var selectedTab by rememberSaveable { mutableStateOf(Tab.CHARACTERS) }
 
     Scaffold(
@@ -90,27 +126,50 @@ private fun CatalogScreen(viewModel: CharactersViewModel, onCharacterClick: (Cha
     ) { padding ->
         when (selectedTab) {
             Tab.CHARACTERS -> CharactersScreen(
-                state = viewModel.uiState,
-                characters = viewModel.visibleCharacters,
-                onQueryChanged = viewModel::updateQuery,
+                state = state,
+                onQueryChanged = onQueryChanged,
+                onNextPage = onNextPage,
+                onPreviousPage = onPreviousPage,
+                onRetry = onRetry,
                 onCharacterClick = onCharacterClick,
+                onOpenNetworkInspector = onOpenNetworkInspector,
                 modifier = Modifier.padding(padding),
             )
-            Tab.LOCATIONS -> PlaceholderScreen("Локации", "Здесь будут планеты и измерения", Tab.LOCATIONS, Modifier.padding(padding))
-            Tab.EPISODES -> PlaceholderScreen("Эпизоды", "Здесь появится список эпизодов", Tab.EPISODES, Modifier.padding(padding))
+            Tab.LOCATIONS -> PlaceholderScreen(
+                "Локации",
+                "Здесь будут планеты и измерения",
+                Tab.LOCATIONS,
+                Modifier.padding(padding),
+            )
+            Tab.EPISODES -> PlaceholderScreen(
+                "Эпизоды",
+                "Здесь появится список эпизодов",
+                Tab.EPISODES,
+                Modifier.padding(padding),
+            )
         }
     }
 }
 
 @Composable
-private fun PlaceholderScreen(title: String, subtitle: String, tab: Tab, modifier: Modifier = Modifier) {
+private fun PlaceholderScreen(
+    title: String,
+    subtitle: String,
+    tab: Tab,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier = modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Icon(tab.icon, contentDescription = null, modifier = Modifier.size(56.dp))
-        Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
+        Text(
+            title,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 16.dp),
+        )
         Text(subtitle, color = AppColors.muted, modifier = Modifier.padding(top = 8.dp))
     }
 }
