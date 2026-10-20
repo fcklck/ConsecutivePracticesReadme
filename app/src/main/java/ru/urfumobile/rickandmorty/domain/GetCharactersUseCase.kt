@@ -1,6 +1,8 @@
 package ru.urfumobile.rickandmorty.domain
 
+import ru.urfumobile.rickandmorty.model.CharacterFilters
+
 class GetCharactersUseCase(private val repository: CharacterRepository) {
-    suspend operator fun invoke(page: Int, name: String?) =
-        repository.getCharacters(page, name?.trim()?.takeIf(String::isNotEmpty))
+    suspend operator fun invoke(page: Int, filters: CharacterFilters) =
+        repository.getCharacters(page, filters)
 }

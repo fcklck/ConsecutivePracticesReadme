@@ -3,21 +3,26 @@ package ru.urfumobile.rickandmorty.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import java.io.IOException
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import ru.urfumobile.rickandmorty.domain.CharacterRepository
 import ru.urfumobile.rickandmorty.domain.GetCharactersUseCase
 import ru.urfumobile.rickandmorty.model.Character
-import java.io.IOException
+import ru.urfumobile.rickandmorty.model.FilterCache
 
 data class CharactersUiState(
     val characters: List<Character> = emptyList(),
-    val query: String = "",
+    val showFilterBadge: Boolean = false,
     val page: Int = 1,
     val totalPages: Int = 1,
     val totalCount: Int = 0,
@@ -27,23 +32,40 @@ data class CharactersUiState(
 
 class CharactersViewModel(
     private val getCharacters: GetCharactersUseCase,
+    private val repository: CharacterRepository,
+    private val filterCache: FilterCache,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(CharactersUiState())
     val uiState: StateFlow<CharactersUiState> = mutableState.asStateFlow()
 
+    val favorites = repository.observeFavorites()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    private val mutableMessages = MutableSharedFlow<String>()
+    val messages = mutableMessages.asSharedFlow()
+
     private var requestJob: Job? = null
-    private var searchJob: Job? = null
 
     init {
-        loadCharacters()
+        viewModelScope.launch {
+            filterCache.filters.collect {
+                mutableState.update {
+                    it.copy(characters = emptyList(), page = 1, showFilterBadge = filterCache.showBadge)
+                }
+                loadCharacters()
+            }
+        }
     }
 
-    fun updateQuery(query: String) {
-        mutableState.update { it.copy(query = query) }
-        searchJob?.cancel()
-        searchJob = viewModelScope.launch {
-            delay(500)
-            loadCharacters(page = 1)
+    fun toggleFavorite(character: Character) {
+        val favorite = favorites.value.none { it.id == character.id }
+        viewModelScope.launch {
+            try {
+                repository.setFavorite(character, favorite)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                mutableMessages.emit("Не удалось изменить избранное. Попробуйте ещё раз.")
+            }
         }
     }
 
@@ -68,7 +90,7 @@ class CharactersViewModel(
         requestJob = viewModelScope.launch {
             mutableState.update { it.copy(isLoading = true, errorMessage = null) }
             try {
-                val result = getCharacters(page, mutableState.value.query)
+                val result = getCharacters(page, filterCache.filters.value)
                 mutableState.update {
                     it.copy(
                         characters = result.characters,
@@ -89,12 +111,6 @@ class CharactersViewModel(
                     )
                 }
             }
-        }
-    }
-
-    companion object {
-        fun factory(useCase: GetCharactersUseCase) = viewModelFactory {
-            CharactersViewModel(useCase)
         }
     }
 }
