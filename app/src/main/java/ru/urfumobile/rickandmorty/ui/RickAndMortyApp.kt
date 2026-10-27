@@ -46,7 +46,7 @@ private const val catalogRoute = "catalog"
 private const val detailsRoute = "character/{characterId}"
 
 @Composable
-fun RickAndMortyApp(viewModel: CharactersViewModel = viewModel()) {
+fun RickAndMortyApp() {
     val navController = rememberNavController()
 
     RickAndMortyTheme {
@@ -54,16 +54,14 @@ fun RickAndMortyApp(viewModel: CharactersViewModel = viewModel()) {
             NavHost(navController = navController, startDestination = catalogRoute) {
                 composable(catalogRoute) {
                     CatalogScreen(
-                        viewModel = viewModel,
                         onCharacterClick = { navController.navigate("character/${it.id}") },
                     )
                 }
                 composable(
                     route = detailsRoute,
                     arguments = listOf(navArgument("characterId") { type = NavType.IntType }),
-                ) { entry ->
-                    val character = viewModel.findCharacter(entry.arguments?.getInt("characterId") ?: -1)
-                    if (character != null) CharacterDetailsScreen(character, navController::popBackStack)
+                ) {
+                    CharacterDetailsScreen(onBack = navController::popBackStack)
                 }
             }
         }
@@ -71,7 +69,8 @@ fun RickAndMortyApp(viewModel: CharactersViewModel = viewModel()) {
 }
 
 @Composable
-private fun CatalogScreen(viewModel: CharactersViewModel, onCharacterClick: (Character) -> Unit) {
+private fun CatalogScreen(onCharacterClick: (Character) -> Unit) {
+    val viewModel: CharactersViewModel = viewModel()
     var selectedTab by rememberSaveable { mutableStateOf(Tab.CHARACTERS) }
 
     Scaffold(

@@ -24,6 +24,4 @@ class CharactersViewModel : ViewModel() {
     fun updateQuery(query: String) {
         uiState = uiState.copy(query = query)
     }
-
-    fun findCharacter(id: Int): Character? = uiState.characters.find { it.id == id }
 }

@@ -3,6 +3,7 @@
 package ru.urfumobile.rickandmorty.ui
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -27,10 +28,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import ru.urfumobile.rickandmorty.model.Character
 
 @Composable
-fun CharacterDetailsScreen(character: Character, onBack: () -> Unit) {
+fun CharacterDetailsScreen(onBack: () -> Unit) {
+    val viewModel: CharacterDetailsViewModel = viewModel()
+    val character = viewModel.character
     Scaffold(
         topBar = {
             TopAppBar(
@@ -44,7 +48,11 @@ fun CharacterDetailsScreen(character: Character, onBack: () -> Unit) {
             )
         },
     ) { padding ->
-        Column(
+        if (character == null) {
+            Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Персонаж не найден")
+            }
+        } else Column(
             modifier = Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
