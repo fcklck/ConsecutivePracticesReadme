@@ -53,21 +53,13 @@ private const val detailsRoute = "character/{characterId}"
 fun RickAndMortyApp(container: AppContainer) {
     val navController = rememberNavController()
     val context = LocalContext.current
-    val listViewModel: CharactersViewModel = viewModel(
-        factory = CharactersViewModel.factory(container.getCharacters),
-    )
-    val listState by listViewModel.uiState.collectAsStateWithLifecycle()
 
     RickAndMortyTheme {
         Surface(Modifier.fillMaxSize()) {
             NavHost(navController = navController, startDestination = catalogRoute) {
                 composable(catalogRoute) {
                     CatalogScreen(
-                        state = listState,
-                        onQueryChanged = listViewModel::updateQuery,
-                        onNextPage = listViewModel::nextPage,
-                        onPreviousPage = listViewModel::previousPage,
-                        onRetry = listViewModel::retry,
+                        container = container,
                         onCharacterClick = { navController.navigate("character/${it.id}") },
                         onOpenNetworkInspector = {
                             context.startActivity(Chucker.getLaunchIntent(context))
@@ -77,20 +69,10 @@ fun RickAndMortyApp(container: AppContainer) {
                 composable(
                     route = detailsRoute,
                     arguments = listOf(navArgument("characterId") { type = NavType.IntType }),
-                ) { entry ->
-                    val characterId = entry.arguments?.getInt("characterId") ?: return@composable
-                    val detailsViewModel: CharacterDetailsViewModel = viewModel(
-                        key = "character-$characterId",
-                        factory = CharacterDetailsViewModel.factory(
-                            characterId = characterId,
-                            useCase = container.getCharacter,
-                        ),
-                    )
-                    val detailsState by detailsViewModel.uiState.collectAsStateWithLifecycle()
+                ) {
                     CharacterDetailsScreen(
-                        state = detailsState,
+                        container = container,
                         onBack = navController::popBackStack,
-                        onRetry = detailsViewModel::retry,
                     )
                 }
             }
@@ -100,14 +82,14 @@ fun RickAndMortyApp(container: AppContainer) {
 
 @Composable
 private fun CatalogScreen(
-    state: CharactersUiState,
-    onQueryChanged: (String) -> Unit,
-    onNextPage: () -> Unit,
-    onPreviousPage: () -> Unit,
-    onRetry: () -> Unit,
+    container: AppContainer,
     onCharacterClick: (Character) -> Unit,
     onOpenNetworkInspector: () -> Unit,
 ) {
+    val viewModel: CharactersViewModel = viewModel(
+        factory = CharactersViewModel.factory(container.getCharacters),
+    )
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedTab by rememberSaveable { mutableStateOf(Tab.CHARACTERS) }
 
     Scaffold(
@@ -127,10 +109,10 @@ private fun CatalogScreen(
         when (selectedTab) {
             Tab.CHARACTERS -> CharactersScreen(
                 state = state,
-                onQueryChanged = onQueryChanged,
-                onNextPage = onNextPage,
-                onPreviousPage = onPreviousPage,
-                onRetry = onRetry,
+                onQueryChanged = viewModel::updateQuery,
+                onNextPage = viewModel::nextPage,
+                onPreviousPage = viewModel::previousPage,
+                onRetry = viewModel::retry,
                 onCharacterClick = onCharacterClick,
                 onOpenNetworkInspector = onOpenNetworkInspector,
                 modifier = Modifier.padding(padding),

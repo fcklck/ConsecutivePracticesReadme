@@ -3,7 +3,6 @@ package ru.urfumobile.rickandmorty.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,7 +12,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ru.urfumobile.rickandmorty.domain.GetCharactersUseCase
 import ru.urfumobile.rickandmorty.model.Character
-import java.io.IOException
 
 data class CharactersUiState(
     val characters: List<Character> = emptyList(),
@@ -30,6 +28,11 @@ class CharactersViewModel(
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(CharactersUiState())
     val uiState: StateFlow<CharactersUiState> = mutableState.asStateFlow()
+    private val errorHandler = requestErrorHandler { message ->
+        mutableState.update {
+            it.copy(characters = emptyList(), isLoading = false, errorMessage = message)
+        }
+    }
 
     private var requestJob: Job? = null
     private var searchJob: Job? = null
@@ -65,29 +68,17 @@ class CharactersViewModel(
 
     private fun loadCharacters(page: Int = 1) {
         requestJob?.cancel()
-        requestJob = viewModelScope.launch {
+        requestJob = viewModelScope.launch(errorHandler) {
             mutableState.update { it.copy(isLoading = true, errorMessage = null) }
-            try {
-                val result = getCharacters(page, mutableState.value.query)
-                mutableState.update {
-                    it.copy(
-                        characters = result.characters,
-                        page = result.page,
-                        totalPages = result.totalPages,
-                        totalCount = result.totalCount,
-                        isLoading = false,
-                    )
-                }
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Throwable) {
-                mutableState.update {
-                    it.copy(
-                        characters = emptyList(),
-                        isLoading = false,
-                        errorMessage = error.toMessage(),
-                    )
-                }
+            val result = getCharacters(page, mutableState.value.query)
+            mutableState.update {
+                it.copy(
+                    characters = result.characters,
+                    page = result.page,
+                    totalPages = result.totalPages,
+                    totalCount = result.totalCount,
+                    isLoading = false,
+                )
             }
         }
     }
@@ -97,11 +88,6 @@ class CharactersViewModel(
             CharactersViewModel(useCase)
         }
     }
-}
-
-internal fun Throwable.toMessage() = when (this) {
-    is IOException -> "Нет подключения к интернету. Проверьте сеть и повторите."
-    else -> "Не удалось загрузить данные. Попробуйте ещё раз."
 }
 
 internal inline fun <reified T : ViewModel> viewModelFactory(
