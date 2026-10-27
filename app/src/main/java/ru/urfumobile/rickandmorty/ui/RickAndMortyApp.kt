@@ -26,14 +26,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.chuckerteam.chucker.api.Chucker
+import ru.urfumobile.rickandmorty.di.AppContainer
 import ru.urfumobile.rickandmorty.model.Character
 
 private enum class Tab(val title: String, val icon: ImageVector) {
@@ -46,22 +50,30 @@ private const val catalogRoute = "catalog"
 private const val detailsRoute = "character/{characterId}"
 
 @Composable
-fun RickAndMortyApp() {
+fun RickAndMortyApp(container: AppContainer) {
     val navController = rememberNavController()
+    val context = LocalContext.current
 
     RickAndMortyTheme {
         Surface(Modifier.fillMaxSize()) {
             NavHost(navController = navController, startDestination = catalogRoute) {
                 composable(catalogRoute) {
                     CatalogScreen(
+                        container = container,
                         onCharacterClick = { navController.navigate("character/${it.id}") },
+                        onOpenNetworkInspector = {
+                            context.startActivity(Chucker.getLaunchIntent(context))
+                        },
                     )
                 }
                 composable(
                     route = detailsRoute,
                     arguments = listOf(navArgument("characterId") { type = NavType.IntType }),
                 ) {
-                    CharacterDetailsScreen(onBack = navController::popBackStack)
+                    CharacterDetailsScreen(
+                        container = container,
+                        onBack = navController::popBackStack,
+                    )
                 }
             }
         }
@@ -69,8 +81,15 @@ fun RickAndMortyApp() {
 }
 
 @Composable
-private fun CatalogScreen(onCharacterClick: (Character) -> Unit) {
-    val viewModel: CharactersViewModel = viewModel()
+private fun CatalogScreen(
+    container: AppContainer,
+    onCharacterClick: (Character) -> Unit,
+    onOpenNetworkInspector: () -> Unit,
+) {
+    val viewModel: CharactersViewModel = viewModel(
+        factory = CharactersViewModel.factory(container.getCharacters),
+    )
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedTab by rememberSaveable { mutableStateOf(Tab.CHARACTERS) }
 
     Scaffold(
@@ -89,27 +108,50 @@ private fun CatalogScreen(onCharacterClick: (Character) -> Unit) {
     ) { padding ->
         when (selectedTab) {
             Tab.CHARACTERS -> CharactersScreen(
-                state = viewModel.uiState,
-                characters = viewModel.visibleCharacters,
+                state = state,
                 onQueryChanged = viewModel::updateQuery,
+                onNextPage = viewModel::nextPage,
+                onPreviousPage = viewModel::previousPage,
+                onRetry = viewModel::retry,
                 onCharacterClick = onCharacterClick,
+                onOpenNetworkInspector = onOpenNetworkInspector,
                 modifier = Modifier.padding(padding),
             )
-            Tab.LOCATIONS -> PlaceholderScreen("Локации", "Здесь будут планеты и измерения", Tab.LOCATIONS, Modifier.padding(padding))
-            Tab.EPISODES -> PlaceholderScreen("Эпизоды", "Здесь появится список эпизодов", Tab.EPISODES, Modifier.padding(padding))
+            Tab.LOCATIONS -> PlaceholderScreen(
+                "Локации",
+                "Здесь будут планеты и измерения",
+                Tab.LOCATIONS,
+                Modifier.padding(padding),
+            )
+            Tab.EPISODES -> PlaceholderScreen(
+                "Эпизоды",
+                "Здесь появится список эпизодов",
+                Tab.EPISODES,
+                Modifier.padding(padding),
+            )
         }
     }
 }
 
 @Composable
-private fun PlaceholderScreen(title: String, subtitle: String, tab: Tab, modifier: Modifier = Modifier) {
+private fun PlaceholderScreen(
+    title: String,
+    subtitle: String,
+    tab: Tab,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier = modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
         Icon(tab.icon, contentDescription = null, modifier = Modifier.size(56.dp))
-        Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
+        Text(
+            title,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 16.dp),
+        )
         Text(subtitle, color = AppColors.muted, modifier = Modifier.padding(top = 8.dp))
     }
 }
