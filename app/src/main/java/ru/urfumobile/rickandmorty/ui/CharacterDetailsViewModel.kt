@@ -1,8 +1,10 @@
 package ru.urfumobile.rickandmorty.ui
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.CancellationException
+import androidx.lifecycle.viewmodel.initializer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,11 +20,15 @@ data class CharacterDetailsUiState(
 )
 
 class CharacterDetailsViewModel(
-    private val characterId: Int,
+    savedStateHandle: SavedStateHandle,
     private val getCharacter: GetCharacterUseCase,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(CharacterDetailsUiState())
     val uiState: StateFlow<CharacterDetailsUiState> = mutableState.asStateFlow()
+    private val characterId: Int? = savedStateHandle["characterId"]
+    private val errorHandler = requestErrorHandler { message ->
+        mutableState.value = CharacterDetailsUiState(isLoading = false, errorMessage = message)
+    }
 
     init {
         loadCharacter()
@@ -31,27 +37,20 @@ class CharacterDetailsViewModel(
     fun retry() = loadCharacter()
 
     private fun loadCharacter() {
-        viewModelScope.launch {
+        val id = characterId
+        if (id == null) {
+            mutableState.value = CharacterDetailsUiState(isLoading = false, errorMessage = "Персонаж не найден")
+            return
+        }
+        viewModelScope.launch(errorHandler) {
             mutableState.update { it.copy(isLoading = true, errorMessage = null) }
-            try {
-                mutableState.value = CharacterDetailsUiState(
-                    character = getCharacter(characterId),
-                    isLoading = false,
-                )
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Throwable) {
-                mutableState.value = CharacterDetailsUiState(
-                    isLoading = false,
-                    errorMessage = error.toMessage(),
-                )
-            }
+            mutableState.value = CharacterDetailsUiState(character = getCharacter(id), isLoading = false)
         }
     }
 
     companion object {
-        fun factory(characterId: Int, useCase: GetCharacterUseCase) = viewModelFactory {
-            CharacterDetailsViewModel(characterId, useCase)
+        fun factory(useCase: GetCharacterUseCase) = androidx.lifecycle.viewmodel.viewModelFactory {
+            initializer { CharacterDetailsViewModel(createSavedStateHandle(), useCase) }
         }
     }
 }
