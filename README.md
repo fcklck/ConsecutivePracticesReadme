@@ -4,6 +4,7 @@
 
 - [Практика 3 — «Список с деталями»](SUBMISSION_PRACTICE3.md)
 - [Практика 4 — «Работа с сетью»](SUBMISSION_PRACTICE4.md): [видео работы](docs/practice4-demo.webm) и [история запросов Chucker](docs/practice4-network.png)
+- [Практика 5 — «Локальное хранение данных»](SUBMISSION_PRACTICE5.md): [сохранение фильтров](docs/practice5-filters.webm), [избранное без сети](docs/practice5-favorites.webm)
 
 ### Чему научимся
 Мы будем грузить информацию из сети, научимся работать со списками, навигацией,

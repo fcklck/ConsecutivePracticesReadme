@@ -6,23 +6,25 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -32,16 +34,17 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,7 +53,10 @@ import ru.urfumobile.rickandmorty.model.Character
 @Composable
 fun CharactersScreen(
     state: CharactersUiState,
-    onQueryChanged: (String) -> Unit,
+    favoriteIds: Set<Int>,
+    onToggleFavorite: (Character) -> Unit,
+    onOpenFilters: () -> Unit,
+    onOpenFavorites: () -> Unit,
     onNextPage: () -> Unit,
     onPreviousPage: () -> Unit,
     onRetry: () -> Unit,
@@ -67,6 +73,18 @@ fun CharactersScreen(
                 }
             },
             actions = {
+                IconButton(onClick = onOpenFilters) {
+                    BadgedBox(badge = {
+                        if (state.showFilterBadge) Badge(
+                            Modifier.semantics { contentDescription = "Фильтры включены" },
+                        )
+                    }) {
+                        Icon(Icons.Default.FilterList, contentDescription = "Фильтры")
+                    }
+                }
+                IconButton(onClick = onOpenFavorites) {
+                    Icon(Icons.Default.Star, contentDescription = "Избранное")
+                }
                 IconButton(onClick = onOpenNetworkInspector) {
                     Icon(Icons.Default.Cloud, contentDescription = "История сетевых запросов")
                 }
@@ -81,24 +99,6 @@ fun CharactersScreen(
                 color = AppColors.muted,
                 modifier = Modifier.padding(top = 2.dp, bottom = 14.dp),
             )
-            OutlinedTextField(
-                value = state.query,
-                onValueChange = onQueryChanged,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (state.query.isNotEmpty()) {
-                        IconButton(onClick = { onQueryChanged("") }) {
-                            Icon(Icons.Default.Close, contentDescription = "Очистить поиск")
-                        }
-                    }
-                },
-                placeholder = { Text("Поиск через API") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                shape = RoundedCornerShape(14.dp),
-            )
-            Spacer(Modifier.height(12.dp))
         }
 
         when {
@@ -107,6 +107,8 @@ fun CharactersScreen(
             state.characters.isEmpty() -> EmptySearchState()
             else -> CharacterList(
                 state = state,
+                favoriteIds = favoriteIds,
+                onToggleFavorite = onToggleFavorite,
                 onCharacterClick = onCharacterClick,
                 onNextPage = onNextPage,
                 onPreviousPage = onPreviousPage,
@@ -118,18 +120,27 @@ fun CharactersScreen(
 @Composable
 private fun CharacterList(
     state: CharactersUiState,
+    favoriteIds: Set<Int>,
+    onToggleFavorite: (Character) -> Unit,
     onCharacterClick: (Character) -> Unit,
     onNextPage: () -> Unit,
     onPreviousPage: () -> Unit,
 ) {
+    val scrollState = rememberLazyListState()
+    LaunchedEffect(state.page) { scrollState.scrollToItem(0) }
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
+            state = scrollState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             items(state.characters, key = Character::id) { character ->
-                CharacterListItem(character) { onCharacterClick(character) }
+                CharacterListItem(
+                    character, character.id in favoriteIds,
+                    onToggleFavorite = { onToggleFavorite(character) },
+                    onClick = { onCharacterClick(character) },
+                )
             }
             item {
                 Pagination(
@@ -148,7 +159,12 @@ private fun CharacterList(
 }
 
 @Composable
-private fun CharacterListItem(character: Character, onClick: () -> Unit) {
+internal fun CharacterListItem(
+    character: Character,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    onClick: () -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
@@ -165,7 +181,12 @@ private fun CharacterListItem(character: Character, onClick: () -> Unit) {
                 )
                 StatusLabel(character.status)
             }
-            Text("›", fontSize = 28.sp, color = AppColors.muted, modifier = Modifier.padding(start = 8.dp))
+            IconButton(onClick = onToggleFavorite) {
+                Icon(
+                    if (isFavorite) Icons.Default.Star else Icons.Outlined.StarBorder,
+                    contentDescription = if (isFavorite) "Убрать из избранного" else "В избранное",
+                )
+            }
         }
     }
 }

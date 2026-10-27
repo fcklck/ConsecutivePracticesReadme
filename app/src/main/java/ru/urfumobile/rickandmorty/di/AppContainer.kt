@@ -1,16 +1,25 @@
 package ru.urfumobile.rickandmorty.di
 
 import android.content.Context
+import androidx.room.Room
 import com.chuckerteam.chucker.api.ChuckerInterceptor
-import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
-import ru.urfumobile.rickandmorty.data.CharacterRepositoryImpl
-import ru.urfumobile.rickandmorty.data.remote.CharacterApi
-import ru.urfumobile.rickandmorty.domain.GetCharacterUseCase
-import ru.urfumobile.rickandmorty.domain.GetCharactersUseCase
 import java.util.concurrent.TimeUnit
+import okhttp3.logging.HttpLoggingInterceptor
+import okhttp3.OkHttpClient
+import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.Retrofit
+import ru.urfumobile.rickandmorty.data.CharacterRepositoryImpl
+import ru.urfumobile.rickandmorty.data.FavoriteRepositoryImpl
+import ru.urfumobile.rickandmorty.data.local.CharacterDatabase
+import ru.urfumobile.rickandmorty.data.local.FilterPreferences
+import ru.urfumobile.rickandmorty.data.remote.CharacterApi
+import ru.urfumobile.rickandmorty.domain.CharacterRepository
+import ru.urfumobile.rickandmorty.domain.FavoriteRepository
+import ru.urfumobile.rickandmorty.domain.ObserveFavoritesUseCase
+import ru.urfumobile.rickandmorty.domain.SetFavoriteUseCase
+import ru.urfumobile.rickandmorty.domain.GetCharactersUseCase
+import ru.urfumobile.rickandmorty.domain.GetCharacterUseCase
+import ru.urfumobile.rickandmorty.model.FilterCache
 
 class AppContainer(context: Context) {
     private val httpClient = OkHttpClient.Builder()
@@ -29,8 +38,19 @@ class AppContainer(context: Context) {
         .build()
         .create(CharacterApi::class.java)
 
-    private val repository = CharacterRepositoryImpl(api)
+    private val database = Room.databaseBuilder(
+        context, CharacterDatabase::class.java, "characters.db",
+    ).build()
+
+    val filterPreferences = FilterPreferences(
+        context.getSharedPreferences("filters", Context.MODE_PRIVATE),
+    )
+    val filterCache = FilterCache(filterPreferences.read())
+    private val repository: CharacterRepository = CharacterRepositoryImpl(api)
+    private val favorites: FavoriteRepository = FavoriteRepositoryImpl(database.favorites())
 
     val getCharacters = GetCharactersUseCase(repository)
-    val getCharacter = GetCharacterUseCase(repository)
+    val getCharacter = GetCharacterUseCase(repository, favorites)
+    val observeFavorites = ObserveFavoritesUseCase(favorites)
+    val setFavorite = SetFavoriteUseCase(favorites)
 }

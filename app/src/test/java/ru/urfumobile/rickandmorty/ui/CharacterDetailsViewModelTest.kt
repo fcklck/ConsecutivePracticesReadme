@@ -12,9 +12,12 @@ import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import ru.urfumobile.rickandmorty.MainDispatcherRule
+import ru.urfumobile.rickandmorty.FakeFavoriteRepository
+import ru.urfumobile.rickandmorty.savedCharacter
 import ru.urfumobile.rickandmorty.domain.CharacterRepository
 import ru.urfumobile.rickandmorty.domain.GetCharacterUseCase
 import ru.urfumobile.rickandmorty.model.Character
+import ru.urfumobile.rickandmorty.model.CharacterFilters
 import ru.urfumobile.rickandmorty.model.CharacterPage
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -73,15 +76,29 @@ class CharacterDetailsViewModelTest {
     }
 
     private fun createViewModel(repository: CharacterRepository, id: Int?) = CharacterDetailsViewModel(
-        SavedStateHandle(mapOf("characterId" to id)), GetCharacterUseCase(repository),
+        SavedStateHandle(mapOf("characterId" to id)), GetCharacterUseCase(repository, FakeFavoriteRepository()),
     )
+
+    @Test
+    fun `saved favorite details are available without a network request`() = runTest {
+        val repository = DetailsRepository().apply { failure = IOException("offline") }
+        val favorites = FakeFavoriteRepository(listOf(savedCharacter))
+        val viewModel = CharacterDetailsViewModel(
+            SavedStateHandle(mapOf("characterId" to savedCharacter.id)), GetCharacterUseCase(repository, favorites),
+        )
+        advanceUntilIdle()
+
+        assertEquals(savedCharacter, viewModel.uiState.value.character)
+        assertNull(repository.lastId)
+        assertNull(viewModel.uiState.value.errorMessage)
+    }
 }
 
 private class DetailsRepository : CharacterRepository {
     var lastId: Int? = null
     var failure: Exception? = null
 
-    override suspend fun getCharacters(page: Int, name: String?): CharacterPage = error("Not used")
+    override suspend fun getCharacters(page: Int, filters: CharacterFilters): CharacterPage = error("Not used")
 
     override suspend fun getCharacter(id: Int): Character {
         lastId = id
