@@ -2,6 +2,10 @@
 
 package ru.urfumobile.rickandmorty.ui
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Tv
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +40,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.createSavedStateHandle
+import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.NavHost
@@ -49,6 +56,7 @@ private enum class Tab(val title: String, val icon: ImageVector) {
     CHARACTERS("Персонажи", Icons.Default.Home),
     LOCATIONS("Локации", Icons.Default.LocationOn),
     EPISODES("Эпизоды", Icons.Default.Tv),
+    PROFILE("Профиль", Icons.Default.Person),
 }
 
 private const val catalogRoute = "catalog"
@@ -58,6 +66,24 @@ private const val detailsRoute = "character/{characterId}"
 fun RickAndMortyApp(container: AppContainer) {
     val navController = rememberNavController()
     val context = LocalContext.current
+    val profileViewModel: ProfileViewModel = viewModel(
+        factory = viewModelFactory { ProfileViewModel(container.profileRepository) },
+    )
+    val profile by profileViewModel.profile.collectAsStateWithLifecycle()
+    val resume by profileViewModel.resume.collectAsStateWithLifecycle()
+    LaunchedEffect(resume.fileUri) {
+        resume.fileUri?.let { uri ->
+            profileViewModel.clearResult()
+            try {
+                context.startActivity(
+                    Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse(uri), "application/pdf")
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
+                )
+            } catch (error: ActivityNotFoundException) {
+                profileViewModel.viewerUnavailable()
+            }
+        }
+    }
     val listViewModel: CharactersViewModel = viewModel(
         factory = viewModelFactory {
             CharactersViewModel(container.getCharacters, container.repository, container.filterCache)
@@ -76,6 +102,14 @@ fun RickAndMortyApp(container: AppContainer) {
                 NavHost(navController = navController, startDestination = catalogRoute) {
                     composable(catalogRoute) {
                         CatalogScreen(
+                            profileContent = { modifier ->
+                                ProfileScreen(
+                                    profile, resume,
+                                    onEdit = { navController.navigate("editProfile") },
+                                    onResume = profileViewModel::downloadResume,
+                                    modifier = modifier,
+                                )
+                            },
                             state = listState,
                             favoriteIds = favorites.map { it.id }.toSet(),
                             onToggleFavorite = listViewModel::toggleFavorite,
@@ -89,6 +123,16 @@ fun RickAndMortyApp(container: AppContainer) {
                                 context.startActivity(Chucker.getLaunchIntent(context))
                             },
                         )
+                    }
+                    composable("editProfile") {
+                        val editViewModel: EditProfileViewModel = viewModel(
+                            factory = androidx.lifecycle.viewmodel.viewModelFactory {
+                                initializer {
+                                    EditProfileViewModel(container.profileRepository, createSavedStateHandle())
+                                }
+                            },
+                        )
+                        EditProfileScreen(editViewModel) { navController.popBackStack() }
                     }
                     composable("filters") {
                         val filtersViewModel: FiltersViewModel = viewModel(
@@ -141,6 +185,7 @@ fun RickAndMortyApp(container: AppContainer) {
 
 @Composable
 private fun CatalogScreen(
+    profileContent: @Composable (Modifier) -> Unit,
     state: CharactersUiState,
     favoriteIds: Set<Int>,
     onToggleFavorite: (Character) -> Unit,
@@ -169,6 +214,7 @@ private fun CatalogScreen(
         },
     ) { padding ->
         when (selectedTab) {
+            Tab.PROFILE -> profileContent(Modifier.padding(padding))
             Tab.CHARACTERS -> CharactersScreen(
                 state = state,
                 favoriteIds = favoriteIds,
