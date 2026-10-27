@@ -5,6 +5,19 @@
 - [Практика 3 — «Список с деталями»](SUBMISSION_PRACTICE3.md)
 - [Практика 4 — «Работа с сетью»](SUBMISSION_PRACTICE4.md): [видео работы](docs/practice4-demo.webm) и [история запросов Chucker](docs/practice4-network.png)
 - [Практика 5 — «Локальное хранение данных»](SUBMISSION_PRACTICE5.md): [сохранение фильтров](docs/practice5-filters.webm), [избранное без сети](docs/practice5-favorites.webm)
+- [Практика 6 — «Профиль»](SUBMISSION_PRACTICE6.md): профиль, фото из галереи/камеры и открытие PDF.
+
+### Практика 6 — демонстрация
+
+Редактирование профиля, выбор фото, камера, сохранение и открытие скачанного PDF:
+
+![Работа профиля](docs/practice6-profile.gif)
+
+Отказ в доступе возвращает на профиль; разрешение открывает редактор (Android 11):
+
+![Проверка разрешений](docs/practice6-permissions.gif)
+
+[Видео MP4](docs/practice6-profile.mp4) · [Описание реализации и проверки](SUBMISSION_PRACTICE6.md)
 
 ### Чему научимся
 Мы будем грузить информацию из сети, научимся работать со списками, навигацией,
