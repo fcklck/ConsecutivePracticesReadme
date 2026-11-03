@@ -23,7 +23,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -129,11 +128,19 @@ fun EditProfileScreen(viewModel: EditProfileViewModel, onBack: () -> Unit) {
                     enabled = !state.busy,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                LessonTimeField(
+                    value = state.draft.lessonTime,
+                    error = state.draft.lessonTimeError(),
+                    enabled = !state.busy,
+                    onChange = { viewModel.edit(state.draft.copy(lessonTime = it)) },
+                )
                 state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 if (state.busy) CircularProgressIndicator()
-                Button(onClick = viewModel::save, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
-                    Text("Готово")
-                }
+                ReminderSaveButton(
+                    enabled = !state.busy && state.draft.lessonTimeError() == null,
+                    onSave = viewModel::save,
+                    onError = viewModel::showError,
+                )
             }
         }
     }

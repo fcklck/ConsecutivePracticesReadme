@@ -3,12 +3,16 @@ package ru.urfumobile.rickandmorty.ui
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import java.time.Clock
+import java.time.LocalTime
+import java.time.ZonedDateTime
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ru.urfumobile.rickandmorty.domain.ProfileRepository
+import ru.urfumobile.rickandmorty.domain.ReminderScheduler
 import ru.urfumobile.rickandmorty.model.UserProfile
 
 data class EditProfileState(
@@ -22,6 +26,8 @@ data class EditProfileState(
 class EditProfileViewModel(
     private val repository: ProfileRepository,
     private val savedState: SavedStateHandle,
+    private val reminders: ReminderScheduler,
+    private val clock: Clock = Clock.systemDefaultZone(),
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(
         EditProfileState(savedState["draft"] ?: repository.profile.value),
@@ -50,8 +56,20 @@ class EditProfileViewModel(
             it.copy(fullName = it.fullName.trim(), resumeUrl = it.resumeUrl.trim())
         }
         profile.validationError()?.let { showError(it); return }
+        val now = ZonedDateTime.now(clock)
+        val triggerAt = now.with(LocalTime.parse(profile.lessonTime))
+        if (!triggerAt.isAfter(now)) {
+            showError("Это время сегодня уже прошло. Выберите время позже текущего.")
+            return
+        }
         runOperation("Не удалось сохранить профиль.") {
             repository.save(profile)
+            try {
+                reminders.schedule(triggerAt.toInstant().toEpochMilli(), profile.fullName)
+            } catch (error: SecurityException) {
+                showError("Профиль сохранён, но напоминание не установлено. Проверьте разрешения и нажмите «Готово» ещё раз.")
+                return@runOperation
+            }
             mutableState.update { it.copy(saved = true) }
         }
     }
