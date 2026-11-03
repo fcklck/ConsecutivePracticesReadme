@@ -10,10 +10,14 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.Retrofit
 import ru.urfumobile.rickandmorty.data.CharacterRepositoryImpl
 import ru.urfumobile.rickandmorty.data.ProfileRepositoryImpl
+import ru.urfumobile.rickandmorty.data.FavoriteRepositoryImpl
 import ru.urfumobile.rickandmorty.data.local.CharacterDatabase
 import ru.urfumobile.rickandmorty.data.local.FilterPreferences
 import ru.urfumobile.rickandmorty.data.remote.CharacterApi
 import ru.urfumobile.rickandmorty.domain.CharacterRepository
+import ru.urfumobile.rickandmorty.domain.FavoriteRepository
+import ru.urfumobile.rickandmorty.domain.ObserveFavoritesUseCase
+import ru.urfumobile.rickandmorty.domain.SetFavoriteUseCase
 import ru.urfumobile.rickandmorty.domain.GetCharactersUseCase
 import ru.urfumobile.rickandmorty.domain.GetCharacterUseCase
 import ru.urfumobile.rickandmorty.domain.ProfileRepository
@@ -44,9 +48,12 @@ class AppContainer(context: Context) {
         context.getSharedPreferences("filters", Context.MODE_PRIVATE),
     )
     val filterCache = FilterCache(filterPreferences.read())
-    val repository: CharacterRepository = CharacterRepositoryImpl(api, database.favorites())
     val profileRepository: ProfileRepository = ProfileRepositoryImpl(context, httpClient)
+    private val repository: CharacterRepository = CharacterRepositoryImpl(api)
+    private val favorites: FavoriteRepository = FavoriteRepositoryImpl(database.favorites())
 
     val getCharacters = GetCharactersUseCase(repository)
-    val getCharacter = GetCharacterUseCase(repository)
+    val getCharacter = GetCharacterUseCase(repository, favorites)
+    val observeFavorites = ObserveFavoritesUseCase(favorites)
+    val setFavorite = SetFavoriteUseCase(favorites)
 }

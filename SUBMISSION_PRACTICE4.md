@@ -28,10 +28,15 @@
 - `ui` — ViewModel, UI-состояния и экраны Jetpack Compose;
 - `di/AppContainer` — создание сетевых и доменных зависимостей.
 
+Каждый экран создаёт свою ViewModel; ID для деталей приходит через `SavedStateHandle`.
+Запросы списка и деталей используют общий `requestErrorHandler` на основе `CoroutineExceptionHandler`.
+Он показывает обычные ошибки запросов в UI, не превращает отмену корутины в ошибку сети
+и передаёт критические `Error` дальше.
+
 ## Проверка
 
-- `gradlew.bat testDebugUnitTest assembleDebug`;
-- `gradlew.bat lintDebug`;
+- `gradlew.bat testDebugUnitTest lintDebug assembleDebug assembleRelease` — успешно;
+- 11 unit-тестов: маппинг, поиск, отмена запроса, ID деталей, ошибки/повторная загрузка обоих экранов и обработка критического `Error`;
 - ручная проверка поиска, пагинации, экрана деталей и повторной загрузки на эмуляторе;
 - ручная проверка ошибки при отключённых Wi-Fi и мобильной передаче данных.
 

@@ -3,7 +3,6 @@ package ru.urfumobile.rickandmorty.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,8 +14,9 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import ru.urfumobile.rickandmorty.domain.CharacterRepository
 import ru.urfumobile.rickandmorty.domain.GetCharactersUseCase
+import ru.urfumobile.rickandmorty.domain.ObserveFavoritesUseCase
+import ru.urfumobile.rickandmorty.domain.SetFavoriteUseCase
 import ru.urfumobile.rickandmorty.model.Character
 import ru.urfumobile.rickandmorty.model.FilterCache
 
@@ -32,13 +32,19 @@ data class CharactersUiState(
 
 class CharactersViewModel(
     private val getCharacters: GetCharactersUseCase,
-    private val repository: CharacterRepository,
+    observeFavorites: ObserveFavoritesUseCase,
+    private val setFavorite: SetFavoriteUseCase,
     private val filterCache: FilterCache,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(CharactersUiState())
     val uiState: StateFlow<CharactersUiState> = mutableState.asStateFlow()
+    private val errorHandler = requestErrorHandler { message ->
+        mutableState.update {
+            it.copy(characters = emptyList(), isLoading = false, errorMessage = message)
+        }
+    }
 
-    val favorites = repository.observeFavorites()
+    val favorites = observeFavorites()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     private val mutableMessages = MutableSharedFlow<String>()
     val messages = mutableMessages.asSharedFlow()
@@ -60,7 +66,7 @@ class CharactersViewModel(
         val favorite = favorites.value.none { it.id == character.id }
         viewModelScope.launch {
             try {
-                repository.setFavorite(character, favorite)
+                setFavorite(character, favorite)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -87,37 +93,20 @@ class CharactersViewModel(
 
     private fun loadCharacters(page: Int = 1) {
         requestJob?.cancel()
-        requestJob = viewModelScope.launch {
+        requestJob = viewModelScope.launch(errorHandler) {
             mutableState.update { it.copy(isLoading = true, errorMessage = null) }
-            try {
-                val result = getCharacters(page, filterCache.filters.value)
-                mutableState.update {
-                    it.copy(
-                        characters = result.characters,
-                        page = result.page,
-                        totalPages = result.totalPages,
-                        totalCount = result.totalCount,
-                        isLoading = false,
-                    )
-                }
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Throwable) {
-                mutableState.update {
-                    it.copy(
-                        characters = emptyList(),
-                        isLoading = false,
-                        errorMessage = error.toMessage(),
-                    )
-                }
+            val result = getCharacters(page, filterCache.filters.value)
+            mutableState.update {
+                it.copy(
+                    characters = result.characters,
+                    page = result.page,
+                    totalPages = result.totalPages,
+                    totalCount = result.totalCount,
+                    isLoading = false,
+                )
             }
         }
     }
-}
-
-internal fun Throwable.toMessage() = when (this) {
-    is IOException -> "Нет подключения к интернету. Проверьте сеть и повторите."
-    else -> "Не удалось загрузить данные. Попробуйте ещё раз."
 }
 
 internal inline fun <reified T : ViewModel> viewModelFactory(

@@ -84,17 +84,6 @@ fun RickAndMortyApp(container: AppContainer) {
             }
         }
     }
-    val listViewModel: CharactersViewModel = viewModel(
-        factory = viewModelFactory {
-            CharactersViewModel(container.getCharacters, container.repository, container.filterCache)
-        },
-    )
-    val listState by listViewModel.uiState.collectAsStateWithLifecycle()
-    val favorites by listViewModel.favorites.collectAsStateWithLifecycle()
-    val snackbar = remember { SnackbarHostState() }
-    LaunchedEffect(listViewModel) {
-        listViewModel.messages.collect { snackbar.showSnackbar(it) }
-    }
 
     RickAndMortyTheme {
         Surface(Modifier.fillMaxSize()) {
@@ -110,14 +99,9 @@ fun RickAndMortyApp(container: AppContainer) {
                                     modifier = modifier,
                                 )
                             },
-                            state = listState,
-                            favoriteIds = favorites.map { it.id }.toSet(),
-                            onToggleFavorite = listViewModel::toggleFavorite,
+                            container = container,
                             onOpenFilters = { navController.navigate("filters") },
                             onOpenFavorites = { navController.navigate("favorites") },
-                            onNextPage = listViewModel::nextPage,
-                            onPreviousPage = listViewModel::previousPage,
-                            onRetry = listViewModel::retry,
                             onCharacterClick = { navController.navigate("character/${it.id}") },
                             onOpenNetworkInspector = {
                                 context.startActivity(Chucker.getLaunchIntent(context))
@@ -151,33 +135,21 @@ fun RickAndMortyApp(container: AppContainer) {
                     }
                     composable("favorites") {
                         FavoritesScreen(
-                            characters = favorites,
+                            container = container,
                             onBack = { navController.popBackStack() },
                             onCharacterClick = { navController.navigate("character/${it.id}") },
-                            onRemove = listViewModel::toggleFavorite,
                         )
                     }
                     composable(
                         route = detailsRoute,
                         arguments = listOf(navArgument("characterId") { type = NavType.IntType }),
-                    ) { entry ->
-                        val characterId = entry.arguments?.getInt("characterId") ?: return@composable
-                        val detailsViewModel: CharacterDetailsViewModel = viewModel(
-                            key = "character-$characterId",
-                            factory = CharacterDetailsViewModel.factory(
-                                characterId = characterId,
-                                useCase = container.getCharacter,
-                            ),
-                        )
-                        val detailsState by detailsViewModel.uiState.collectAsStateWithLifecycle()
+                    ) {
                         CharacterDetailsScreen(
-                            state = detailsState,
+                            container = container,
                             onBack = navController::popBackStack,
-                            onRetry = detailsViewModel::retry,
                         )
                     }
                 }
-                SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
             }
         }
     }
@@ -186,20 +158,27 @@ fun RickAndMortyApp(container: AppContainer) {
 @Composable
 private fun CatalogScreen(
     profileContent: @Composable (Modifier) -> Unit,
-    state: CharactersUiState,
-    favoriteIds: Set<Int>,
-    onToggleFavorite: (Character) -> Unit,
+    container: AppContainer,
     onOpenFilters: () -> Unit,
     onOpenFavorites: () -> Unit,
-    onNextPage: () -> Unit,
-    onPreviousPage: () -> Unit,
-    onRetry: () -> Unit,
     onCharacterClick: (Character) -> Unit,
     onOpenNetworkInspector: () -> Unit,
 ) {
+    val viewModel: CharactersViewModel = viewModel(factory = viewModelFactory {
+        CharactersViewModel(
+            container.getCharacters, container.observeFavorites, container.setFavorite, container.filterCache,
+        )
+    })
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val favorites by viewModel.favorites.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(viewModel) {
+        viewModel.messages.collect { snackbar.showSnackbar(it) }
+    }
     var selectedTab by rememberSaveable { mutableStateOf(Tab.CHARACTERS) }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
             NavigationBar(containerColor = AppColors.card) {
                 Tab.entries.forEach { tab ->
@@ -217,13 +196,13 @@ private fun CatalogScreen(
             Tab.PROFILE -> profileContent(Modifier.padding(padding))
             Tab.CHARACTERS -> CharactersScreen(
                 state = state,
-                favoriteIds = favoriteIds,
-                onToggleFavorite = onToggleFavorite,
+                favoriteIds = favorites.map { it.id }.toSet(),
+                onToggleFavorite = viewModel::toggleFavorite,
                 onOpenFilters = onOpenFilters,
                 onOpenFavorites = onOpenFavorites,
-                onNextPage = onNextPage,
-                onPreviousPage = onPreviousPage,
-                onRetry = onRetry,
+                onNextPage = viewModel::nextPage,
+                onPreviousPage = viewModel::previousPage,
+                onRetry = viewModel::retry,
                 onCharacterClick = onCharacterClick,
                 onOpenNetworkInspector = onOpenNetworkInspector,
                 modifier = Modifier.padding(padding),

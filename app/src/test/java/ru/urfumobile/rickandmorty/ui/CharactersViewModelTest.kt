@@ -1,18 +1,24 @@
 package ru.urfumobile.rickandmorty.ui
 
 import java.io.IOException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import ru.urfumobile.rickandmorty.domain.CharacterRepository
 import ru.urfumobile.rickandmorty.domain.GetCharactersUseCase
 import ru.urfumobile.rickandmorty.MainDispatcherRule
+import ru.urfumobile.rickandmorty.FakeFavoriteRepository
+import ru.urfumobile.rickandmorty.domain.ObserveFavoritesUseCase
+import ru.urfumobile.rickandmorty.domain.SetFavoriteUseCase
 import ru.urfumobile.rickandmorty.model.Character
 import ru.urfumobile.rickandmorty.model.CharacterFilters
 import ru.urfumobile.rickandmorty.model.CharacterPage
@@ -58,7 +64,9 @@ class CharactersViewModelTest {
     @Test
     fun `favorites remain visible when network fails and can be removed`() = runTest {
         val repository = FakeRepository()
-        val viewModel = createViewModel(repository)
+        val favorites = FakeFavoriteRepository()
+        val viewModel = createViewModel(repository, favorites = favorites)
+        val favoritesViewModel = FavoritesViewModel(ObserveFavoritesUseCase(favorites), SetFavoriteUseCase(favorites))
         advanceUntilIdle()
         viewModel.toggleFavorite(testCharacter)
         advanceUntilIdle()
@@ -66,24 +74,73 @@ class CharactersViewModelTest {
         viewModel.retry()
         advanceUntilIdle()
         assertEquals(listOf(testCharacter), viewModel.favorites.value)
+        assertEquals(listOf(testCharacter), favoritesViewModel.favorites.value)
         assertTrue(viewModel.uiState.value.errorMessage != null)
-        viewModel.toggleFavorite(testCharacter)
+        favoritesViewModel.remove(testCharacter)
         advanceUntilIdle()
         assertTrue(viewModel.favorites.value.isEmpty())
+        assertTrue(favoritesViewModel.favorites.value.isEmpty())
+    }
+
+    @Test
+    fun `failed request can be retried`() = runTest {
+        val repository = FakeRepository().apply { failNetwork = true }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertTrue(viewModel.uiState.value.errorMessage.orEmpty().contains("Нет подключения"))
+
+        repository.failNetwork = false
+        viewModel.retry()
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.errorMessage)
+        assertEquals(listOf(testCharacter), viewModel.uiState.value.characters)
+    }
+
+    @Test
+    fun `changing filters cancels a pending request without an error`() = runTest {
+        val repository = FakeRepository()
+        val cache = FilterCache(CharacterFilters())
+        val viewModel = createViewModel(repository, cache)
+        advanceUntilIdle()
+        repository.responseDelay = 1_000
+        viewModel.retry()
+        runCurrent()
+
+        cache.update(CharacterFilters("morty"))
+        runCurrent()
+
+        assertEquals(1, repository.cancelledRequests)
+        assertNull(viewModel.uiState.value.errorMessage)
+        assertTrue(viewModel.uiState.value.isLoading)
+        advanceUntilIdle()
+        assertEquals(CharacterFilters("morty"), repository.lastFilters)
+        assertFalse(viewModel.uiState.value.isLoading)
     }
 
     private fun createViewModel(
         repository: FakeRepository,
         cache: FilterCache = FilterCache(CharacterFilters()),
-    ) = CharactersViewModel(GetCharactersUseCase(repository), repository, cache)
+        favorites: FakeFavoriteRepository = FakeFavoriteRepository(),
+    ) = CharactersViewModel(
+        GetCharactersUseCase(repository), ObserveFavoritesUseCase(favorites), SetFavoriteUseCase(favorites), cache,
+    )
 }
 
 private class FakeRepository : CharacterRepository {
     var lastFilters = CharacterFilters()
     var failNetwork = false
-    private val favorites = MutableStateFlow(emptyList<Character>())
+    var responseDelay: Long = 0
+    var cancelledRequests = 0
 
     override suspend fun getCharacters(page: Int, filters: CharacterFilters): CharacterPage {
+        try {
+            delay(responseDelay)
+        } catch (error: CancellationException) {
+            cancelledRequests++
+            throw error
+        }
         if (failNetwork) throw IOException()
         lastFilters = filters
         return CharacterPage(
@@ -95,10 +152,6 @@ private class FakeRepository : CharacterRepository {
     }
 
     override suspend fun getCharacter(id: Int) = testCharacter
-    override fun observeFavorites() = favorites
-    override suspend fun setFavorite(character: Character, favorite: Boolean) {
-        favorites.value = if (favorite) listOf(character) else emptyList()
-    }
 }
 
 private val testCharacter = Character(

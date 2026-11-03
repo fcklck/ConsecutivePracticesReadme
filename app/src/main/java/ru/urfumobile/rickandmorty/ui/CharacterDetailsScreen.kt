@@ -30,14 +30,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import ru.urfumobile.rickandmorty.di.AppContainer
 import ru.urfumobile.rickandmorty.model.Character
 
 @Composable
 fun CharacterDetailsScreen(
-    state: CharacterDetailsUiState,
+    container: AppContainer,
     onBack: () -> Unit,
-    onRetry: () -> Unit,
 ) {
+    val viewModel: CharacterDetailsViewModel = viewModel(
+        factory = CharacterDetailsViewModel.factory(container.getCharacter),
+    )
+    val state = viewModel.uiState.collectAsStateWithLifecycle().value
     Scaffold(
         topBar = {
             TopAppBar(
@@ -55,7 +61,7 @@ fun CharacterDetailsScreen(
             state.isLoading -> DetailsLoading(Modifier.padding(padding))
             state.errorMessage != null -> DetailsError(
                 message = state.errorMessage,
-                onRetry = onRetry,
+                onRetry = viewModel::retry,
                 modifier = Modifier.padding(padding),
             )
             state.character != null -> CharacterDetails(
