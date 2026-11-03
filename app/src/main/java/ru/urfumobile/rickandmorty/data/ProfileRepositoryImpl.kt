@@ -25,6 +25,7 @@ class ProfileRepositoryImpl(
             preferences.getString("name", "").orEmpty(),
             preferences.getString("photo", "").orEmpty(),
             preferences.getString("resume", "").orEmpty(),
+            preferences.getString("lesson_time", "").orEmpty(),
         ),
     )
     override val profile = current.asStateFlow()
@@ -34,6 +35,7 @@ class ProfileRepositoryImpl(
             .putString("name", profile.fullName)
             .putString("photo", profile.photoUri)
             .putString("resume", profile.resumeUrl)
+            .putString("lesson_time", profile.lessonTime)
             .commit())
         current.value = profile
         File(context.filesDir, "avatars").listFiles()

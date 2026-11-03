@@ -112,7 +112,9 @@ fun RickAndMortyApp(container: AppContainer) {
                         val editViewModel: EditProfileViewModel = viewModel(
                             factory = androidx.lifecycle.viewmodel.viewModelFactory {
                                 initializer {
-                                    EditProfileViewModel(container.profileRepository, createSavedStateHandle())
+                                    EditProfileViewModel(
+                                        container.profileRepository, createSavedStateHandle(), container.reminderScheduler,
+                                    )
                                 }
                             },
                         )

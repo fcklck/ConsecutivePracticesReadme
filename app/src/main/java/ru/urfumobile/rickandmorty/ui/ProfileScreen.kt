@@ -73,6 +73,9 @@ fun ProfileScreen(
             if (profile.resumeUrl.isNotBlank()) {
                 Text(profile.resumeUrl, color = AppColors.muted, textAlign = TextAlign.Center)
             }
+            if (profile.lessonTime.isNotBlank()) {
+                Text("Время любимой пары: ${profile.lessonTime}")
+            }
             Button(onClick = onResume, enabled = profile.resumeUrl.isNotBlank() && !resume.downloading) {
                 Text(if (resume.downloading) "Скачивание…" else "Резюме")
             }

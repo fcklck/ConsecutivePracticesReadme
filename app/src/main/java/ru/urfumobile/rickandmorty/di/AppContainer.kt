@@ -22,6 +22,7 @@ import ru.urfumobile.rickandmorty.domain.GetCharactersUseCase
 import ru.urfumobile.rickandmorty.domain.GetCharacterUseCase
 import ru.urfumobile.rickandmorty.domain.ProfileRepository
 import ru.urfumobile.rickandmorty.model.FilterCache
+import ru.urfumobile.rickandmorty.notifications.LessonReminderScheduler
 
 class AppContainer(context: Context) {
     private val httpClient = OkHttpClient.Builder()
@@ -49,6 +50,7 @@ class AppContainer(context: Context) {
     )
     val filterCache = FilterCache(filterPreferences.read())
     val profileRepository: ProfileRepository = ProfileRepositoryImpl(context, httpClient)
+    val reminderScheduler = LessonReminderScheduler(context)
     private val repository: CharacterRepository = CharacterRepositoryImpl(api)
     private val favorites: FavoriteRepository = FavoriteRepositoryImpl(database.favorites())
 
