@@ -9,6 +9,7 @@ import okhttp3.OkHttpClient
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.Retrofit
 import ru.urfumobile.rickandmorty.data.CharacterRepositoryImpl
+import ru.urfumobile.rickandmorty.data.ProfileRepositoryImpl
 import ru.urfumobile.rickandmorty.data.FavoriteRepositoryImpl
 import ru.urfumobile.rickandmorty.data.local.CharacterDatabase
 import ru.urfumobile.rickandmorty.data.local.FilterPreferences
@@ -19,6 +20,7 @@ import ru.urfumobile.rickandmorty.domain.ObserveFavoritesUseCase
 import ru.urfumobile.rickandmorty.domain.SetFavoriteUseCase
 import ru.urfumobile.rickandmorty.domain.GetCharactersUseCase
 import ru.urfumobile.rickandmorty.domain.GetCharacterUseCase
+import ru.urfumobile.rickandmorty.domain.ProfileRepository
 import ru.urfumobile.rickandmorty.model.FilterCache
 
 class AppContainer(context: Context) {
@@ -46,6 +48,7 @@ class AppContainer(context: Context) {
         context.getSharedPreferences("filters", Context.MODE_PRIVATE),
     )
     val filterCache = FilterCache(filterPreferences.read())
+    val profileRepository: ProfileRepository = ProfileRepositoryImpl(context, httpClient)
     private val repository: CharacterRepository = CharacterRepositoryImpl(api)
     private val favorites: FavoriteRepository = FavoriteRepositoryImpl(database.favorites())
 
